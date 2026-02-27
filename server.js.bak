@@ -1,30 +1,27 @@
-﻿// server.js
+// server.js
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const connectDB = require('./config/db');
-
-// security + rate limit
+// near top of server.js
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 
-const app = express();
-
-// basic security headers
 app.use(helmet());
-
-// parse JSON with size limit (prevents huge bodies)
 app.use(express.json({ limit: '200kb' }));
-app.use(cors());
 
-// basic rate limiter for all requests (tweak limits if needed)
+// basic rate limiter
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 300,                 // max requests per IP per window
+  windowMs: 15 * 60 * 1000,
+  max: 300, // per IP per window; adjust tighter for sensitive endpoints
   standardHeaders: true,
   legacyHeaders: false
 });
 app.use(limiter);
+
+const app = express();
+app.use(cors());
+app.use(express.json());
 
 // connect DB
 connectDB(process.env.MONGO_URI);
@@ -32,20 +29,15 @@ connectDB(process.env.MONGO_URI);
 // simple health check
 app.get('/', (req, res) => res.send({ ok: true, message: 'Adaptive elearn backend API' }));
 
-// routes (keep exactly as your project uses)
+// routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/courses', require('./routes/courses'));
 app.use('/api/lessons', require('./routes/lessons'));
 app.use('/api/questions', require('./routes/questions'));
 app.use('/api/attempts', require('./routes/attempts'));
+// server.js - snippet to insert (exact)
 app.use('/api/attempts-debug', require('./routes/attempts.debug'));
 app.use('/api/gamification', require('./routes/gamification'));
-
-// generic error handler (prevents stack traces leaking to clients)
-app.use((err, req, res, next) => {
-  console.error('Unhandled error:', err && (err.stack || err.message) ? (err.stack || err.message) : err);
-  res.status(500).json({ message: 'Server error' });
-});
 
 // start server
 const PORT = process.env.PORT || 5000;

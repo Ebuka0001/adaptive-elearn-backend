@@ -1,153 +1,141 @@
-﻿// controllers/attemptController.js
-const mongoose = require('mongoose');
-const Attempt = require('../models/Attempt');
-const Question = require('../models/Question');
-const User = require('../models/User');
-const adaptiveService = require('../services/adaptiveService');
-const badgeService = require('../services/badgeService');
-const { calculateReward } = require('../services/rewardService');
+﻿const mongoose = require("mongoose");
+const Attempt = require("../models/Attempt");
+const Question = require("../models/Question");
+const User = require("../models/User");
+const adaptiveService = require("../services/adaptiveService");
+const badgeService = require("../services/badgeService");
 
-// helper: timeout wrapper
-function withTimeout(promise, ms = 4000, label = 'operation') {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms))
-  ]);
-}
-
-async function tryStartSession() {
-  try {
-    const session = await mongoose.startSession();
-    session.startTransaction();
-    return session;
-  } catch (e) {
-    return null;
-  }
-}
-
+/**
+ * Submit attempt (idempotent when Idempotency-Key header provided)
+ * Body: { questionId, givenAnswer, timeSeconds? }
+ */
 exports.submitAttempt = async (req, res) => {
-  const { questionId, givenAnswer, timeSeconds = 0 } = req.body || {};
+  const { questionId, givenAnswer } = req.body;
 
   try {
-    if (!questionId) return res.status(400).json({ message: 'questionId is required' });
-    if (!mongoose.Types.ObjectId.isValid(questionId)) return res.status(400).json({ message: 'questionId is not a valid id' });
-
-    const session = await tryStartSession();
-
-    // fetch question (use session where possible)
-    const question = session ? await Question.findById(questionId).session(session) : await Question.findById(questionId);
-    if (!question) {
-      if (session) { await session.abortTransaction(); session.endSession(); }
-      return res.status(404).json({ message: 'Question not found' });
+    // Basic validation
+    if (!questionId) return res.status(400).json({ message: "questionId is required" });
+    if (!mongoose.Types.ObjectId.isValid(questionId)) {
+      return res.status(400).json({ message: "questionId is not a valid id" });
     }
 
-    // correctness check
+    const question = await Question.findById(questionId);
+    if (!question) return res.status(404).json({ message: "Question not found" });
+
+    // Evaluate correctness (unchanged logic)
     let correct = false;
-    if (question.type === 'mcq') {
-      const correctChoice = (question.choices || []).find(c => c.correct);
-      correct = !!(correctChoice && String(correctChoice.text).trim() === String(givenAnswer || '').trim());
+    if (question.type === "mcq") {
+      const correctChoice = (question.choices || []).find((c) => c.correct);
+      correct = !!(correctChoice && correctChoice.text === givenAnswer);
     } else {
-      correct = String(question.answer || '').trim().toLowerCase() === String(givenAnswer || '').trim().toLowerCase();
+      correct =
+        String(question.answer || "").trim().toLowerCase() ===
+        String(givenAnswer || "").trim().toLowerCase();
     }
 
-    // load user
-    const user = session
-      ? await User.findById(req.user._id).session(session)
-      : await User.findById(req.user._id);
+    const pointsEarned = correct ? (question.points || 0) : 0;
 
-    if (!user) {
-      if (session) { await session.abortTransaction(); session.endSession(); }
-      return res.status(500).json({ message: 'User not found' });
-    }
+    // Idempotency header (optional)
+    const idemKey = req.header("Idempotency-Key") || req.header("idempotency-key");
 
-    // calculate points
-    const pointsToAward = calculateReward({
-      correct,
-      difficulty: question.difficulty || 1,
-      timeSeconds,
-      base: question.points || 10,
-      streak: user.currentStreak || 0
-    });
-
-    // create attempt (audit)
-    let attemptDoc;
-    if (session) {
-      const arr = await Attempt.create([{
-        student: user._id,
+    if (idemKey) {
+      // atomic upsert: create attempt only if one with same idempotencyKey + student doesn't exist
+      const filter = { idempotencyKey: idemKey, student: req.user._id };
+      const toInsert = {
+        student: req.user._id,
         question: question._id,
         correct,
         givenAnswer,
-        pointsEarned: pointsToAward,
-        timeSeconds
-      }], { session });
-      attemptDoc = arr[0];
-    } else {
-      attemptDoc = await Attempt.create({
-        student: user._id,
-        question: question._id,
-        correct,
-        givenAnswer,
-        pointsEarned: pointsToAward,
-        timeSeconds
+        pointsEarned,
+        idempotencyKey: idemKey,
+      };
+
+      // Use rawResult to detect whether we inserted or found existing
+      const raw = await Attempt.findOneAndUpdate(
+        filter,
+        { $setOnInsert: toInsert },
+        { upsert: true, new: true, setDefaultsOnInsert: true, includeResultMetadata: true }
+      );
+
+      const attemptDoc = raw.value;
+      const wasInserted = raw.lastErrorObject && raw.lastErrorObject.upserted;
+
+      // If we inserted now, perform user updates once
+      const user = await User.findById(req.user._id);
+      if (!user) return res.status(500).json({ message: "User not found when updating after attempt" });
+
+      if (wasInserted) {
+        // update points and level if applicable
+        if (pointsEarned) {
+          user.points = (user.points || 0) + pointsEarned;
+          user.level = Math.floor(user.points / 100) + 1;
+        }
+
+        // Update mastery and badges
+        try {
+          await adaptiveService.updateMastery(user, question.concepts || [], correct, question.difficulty || 1);
+        } catch (mErr) {
+          console.error("updateMastery error (non-fatal):", mErr && mErr.message ? mErr.message : mErr);
+        }
+
+        try {
+          const awarded = await badgeService.checkBadges(user);
+          // badgeService may mutate user.badges
+        } catch (bErr) {
+          console.error("badgeService.checkBadges error (non-fatal):", bErr && bErr.message ? bErr.message : bErr);
+        }
+
+        await user.save();
+      } else {
+        // Not inserted: existing attempt found — return it, but fetch fresh user state
+      }
+
+      // return existing/inserted attempt and fresh user data
+      const freshUser = await User.findById(req.user._id);
+      return res.json({
+        attempt: attemptDoc,
+        user: { id: freshUser._id, name: freshUser.name, points: freshUser.points, level: freshUser.level, mastery: freshUser.mastery, badges: freshUser.badges },
       });
     }
 
-    // update user (session if possible)
-    try {
-      if (session) {
-        if (pointsToAward > 0) user.points = (user.points || 0) + pointsToAward;
-        user.level = Math.floor((user.points || 0) / 100) + 1;
-        user.currentStreak = correct ? ((user.currentStreak || 0) + 1) : 0;
-        await user.save({ session });
-      } else {
-        const update = {};
-        if (pointsToAward > 0) update.$inc = { points: pointsToAward };
-        update.$set = { currentStreak: correct ? ((user.currentStreak || 0) + 1) : 0 };
-        const newPoints = (user.points || 0) + (pointsToAward || 0);
-        update.$set.level = Math.floor(newPoints / 100) + 1;
-        const updated = await User.findByIdAndUpdate(user._id, update, { new: true });
-        if (updated) {
-          user.points = updated.points;
-          user.level = updated.level;
-          user.currentStreak = updated.currentStreak;
-        }
-      }
-    } catch (uErr) {
-      console.error('user update error (non-fatal):', uErr && uErr.message ? uErr.message : uErr);
-    }
-
-    // guarded adaptive & badge calls
-    let awardedBadges = [];
-    try {
-      if (adaptiveService && typeof adaptiveService.updateMastery === 'function') {
-        await withTimeout(adaptiveService.updateMastery(user, question.concepts || [], correct, question.difficulty || 1, { session }), 3500, 'adaptive.updateMastery');
-      }
-    } catch (ae) {
-      console.error('adaptiveService.updateMastery error (non-fatal):', ae && ae.message ? ae.message : ae);
-    }
-
-    try {
-      if (badgeService && typeof badgeService.checkBadges === 'function') {
-        awardedBadges = await withTimeout(badgeService.checkBadges(user, { session }), 3500, 'badge.checkBadges');
-        awardedBadges = Array.isArray(awardedBadges) ? awardedBadges : [];
-      }
-    } catch (be) {
-      console.error('badgeService.checkBadges error (non-fatal):', be && be.message ? be.message : be);
-    }
-
-    if (session) {
-      try { await session.commitTransaction(); } catch (e) { console.error('commit failed:', e && e.message ? e.message : e); try { await session.abortTransaction(); } catch(_){} }
-      session.endSession();
-    }
-
-    return res.json({
-      attempt: attemptDoc,
-      user: { id: user._id, name: user.name, points: user.points, level: user.level, mastery: user.mastery, badges: user.badges },
-      awardedBadges
+    // No idempotency key: normal (non-atomic) flow (existing behavior)
+    const attempt = new Attempt({
+      student: req.user._id,
+      question: question._id,
+      correct,
+      givenAnswer,
+      pointsEarned,
     });
+    await attempt.save();
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(500).json({ message: "User not found when updating after attempt" });
+    }
+
+    if (pointsEarned) {
+      user.points = (user.points || 0) + pointsEarned;
+      user.level = Math.floor(user.points / 100) + 1;
+    }
+
+    try {
+      await adaptiveService.updateMastery(user, question.concepts || [], correct, question.difficulty || 1);
+    } catch (mErr) {
+      console.error("updateMastery error (non-fatal):", mErr && mErr.message ? mErr.message : mErr);
+    }
+
+    try {
+      const awarded = await badgeService.checkBadges(user);
+    } catch (bErr) {
+      console.error("badgeService.checkBadges error (non-fatal):", bErr && bErr.message ? bErr.message : bErr);
+    }
+
+    await user.save();
+
+    return res.json({ attempt, user: { id: user._id, name: user.name, points: user.points, level: user.level, mastery: user.mastery, badges: user.badges } });
   } catch (err) {
-    console.error('submitAttempt error:', err && (err.stack || err.message) ? (err.stack || err.message) : err);
-    return res.status(500).json({ message: 'Server error' });
+    console.error("submitAttempt error:", err && err.stack ? err.stack : err);
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
