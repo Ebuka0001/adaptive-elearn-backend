@@ -32,6 +32,8 @@ connectDB(process.env.MONGO_URI);
 // simple health check
 app.get('/', (req, res) => res.send({ ok: true, message: 'Adaptive elearn backend API' }));
 
+app.use('/uploads', express.static('uploads'));
+
 // routes (keep exactly as your project uses)
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/courses', require('./routes/courses'));
@@ -40,6 +42,10 @@ app.use('/api/questions', require('./routes/questions'));
 app.use('/api/attempts', require('./routes/attempts'));
 app.use('/api/attempts-debug', require('./routes/attempts.debug'));
 app.use('/api/gamification', require('./routes/gamification'));
+app.use('/api/user', require('./routes/user'));
+app.use('/api/upload', require('./routes/upload'));
+app.use('/api/lecturer', require('./routes/lecturer'));
+app.use('/api/enrollments', require('./routes/enrollment'));
 
 // generic error handler (prevents stack traces leaking to clients)
 app.use((err, req, res, next) => {

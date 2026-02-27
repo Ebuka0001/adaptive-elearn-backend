@@ -1,4 +1,4 @@
-//models/User.js
+// models/User.js
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
@@ -10,6 +10,10 @@ const userSchema = new mongoose.Schema({
   level: { type: Number, default: 1 },
   badges: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Badge' }],
   mastery: { type: Map, of: Number, default: {} },
+  // New fields for frontend
+  department: { type: String, default: 'Software Engineering' },
+  learningStyle: { type: String, enum: ['Short & Quick', 'Detailed', 'Visual'], default: 'Short & Quick' },
+  studyTime: { type: String, enum: ['Morning', 'Afternoon', 'Night'], default: 'Night' },
   createdAt: { type: Date, default: Date.now }
 });
 
