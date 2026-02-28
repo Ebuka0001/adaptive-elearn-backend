@@ -46,6 +46,7 @@ app.use('/api/user', require('./routes/user'));
 app.use('/api/upload', require('./routes/upload'));
 app.use('/api/lecturer', require('./routes/lecturer'));
 app.use('/api/enrollments', require('./routes/enrollment'));
+app.use('/api/admin', require('./routes/admin'));
 
 // generic error handler (prevents stack traces leaking to clients)
 app.use((err, req, res, next) => {

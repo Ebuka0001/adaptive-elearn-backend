@@ -1,26 +1,38 @@
-# Adaptive E-Learn — Backend (dev)
+# Adaptive E-Learn — Backend
 
-**Project:** Adaptive E-Learn — a gamified adaptive e-learning backend  
+**Project:** Adaptive E-Learn — a gamified adaptive e‑learning platform  
 **Repo:** `adaptive-elearn-backend`  
 **Owner:** Ebuka (GitHub: `Ebuka0001`)
 
 ---
 
-## What this backend does (short)
-- Provides authentication (register/login) for `student` and `lecturer`.
-- Lecturers create courses, lessons, and questions.
-- Students fetch adaptive questions (`/api/questions/next`) and submit attempts (`/api/attempts`).
-- Gamification: points, levels, badges and leaderboard endpoints.
-- Seed script (`seed.js`) creates sample lecturer, course, lesson, question, and demo users.
+## 🚀 What this backend does
+
+- **Authentication** – register/login for `student`, `lecturer`, and `admin`.
+- **Role‑based access** – protected routes for each role.
+- **Course & Lesson management** – lecturers can create courses, lessons, and upload PDF files.
+- **Adaptive quizzing** – students fetch questions adapted to their mastery level; submissions update points, level, and mastery.
+- **Gamification** – points, levels, badges, leaderboard.
+- **Enrollment** – students can enroll in courses; track progress.
+- **Lecturer dashboard** – stats and courses with enrollment counts.
+- **Admin panel** – manage users, view system statistics.
+- **Password reset** – token‑based (mock email for demo).
+- **Email verification** – optional mock flow.
 
 ---
 
-## Tech stack
-- Node.js (>=16)
-- Express
-- MongoDB (Atlas) with Mongoose
-- Auth: JWT
-- Dev tools: nodemon
+## 🛠 Tech stack
+
+- **Node.js** (v16+)
+- **Express** – web framework
+- **MongoDB Atlas** + **Mongoose** – database
+- **JWT** – authentication
+- **bcryptjs** – password hashing
+- **multer** – file uploads (PDF only)
+- **helmet** – security headers
+- **express-rate-limit** – basic rate limiting
+- **nodemon** – development
+- **Redis** – optional for idempotency (falls back gracefully)
 
 ---
 

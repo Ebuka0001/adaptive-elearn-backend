@@ -75,6 +75,21 @@ async function seed() {
     console.log('Created student');
   }
 
+  // Create admin user
+let admin = await User.findOne({ email: 'admin@example.com' });
+if (!admin) {
+  const adminPass = await bcrypt.hash('AdminPass123', 10);
+  admin = await User.create({
+    name: 'Admin',
+    email: 'admin@example.com',
+    passwordHash: adminPass,
+    role: 'admin',
+    department: 'Administration'
+  });
+  console.log('Created admin');
+}
+
+
   // For each lecturer, create a course for their level
   for (const { level, lecturer } of lecturers) {
     const courseTitle = `Software Engineering ${level} Level`;
@@ -169,3 +184,4 @@ seed().catch(err => {
   console.error(err);
   process.exit(1);
 });
+

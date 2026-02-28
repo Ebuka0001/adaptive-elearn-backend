@@ -1,43 +1,524 @@
 openapi: 3.0.0
 info:
-  title: Adaptive E-Learn API (minimal)
-  version: "1.0.0"
+  title: Adaptive E-Learn API
+  version: 2.0.0
+  description: |
+    Gamified adaptive e‑learning platform with roles: student, lecturer, admin.
 servers:
   - url: http://localhost:5000
+    description: Local development server
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [student, lecturer, admin]
+        points:
+          type: integer
+        level:
+          type: integer
+        badges:
+          type: array
+          items:
+            type: string
+        mastery:
+          type: object
+          additionalProperties:
+            type: number
+        department:
+          type: string
+        learningStyle:
+          type: string
+        studyTime:
+          type: string
+    Course:
+      type: object
+      properties:
+        _id:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        level:
+          type: string
+        duration:
+          type: string
+        lecturer:
+          $ref: '#/components/schemas/User'
+        lessons:
+          type: array
+          items:
+            $ref: '#/components/schemas/Lesson'
+        createdAt:
+          type: string
+          format: date-time
+        isEnrolled:
+          type: boolean
+    Lesson:
+      type: object
+      properties:
+        _id:
+          type: string
+        title:
+          type: string
+        content:
+          type: string
+        course:
+          type: string
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Question'
+        concepts:
+          type: array
+          items:
+            type: string
+        order:
+          type: integer
+        files:
+          type: array
+          items:
+            type: object
+            properties:
+              filename:
+                type: string
+              url:
+                type: string
+              uploadedAt:
+                type: string
+                format: date-time
+        createdAt:
+          type: string
+          format: date-time
+    Question:
+      type: object
+      properties:
+        _id:
+          type: string
+        text:
+          type: string
+        type:
+          type: string
+          enum: [mcq, short, code]
+        choices:
+          type: array
+          items:
+            type: object
+            properties:
+              text:
+                type: string
+        difficulty:
+          type: integer
+        concepts:
+          type: array
+          items:
+            type: string
+        points:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+    Attempt:
+      type: object
+      properties:
+        _id:
+          type: string
+        student:
+          type: string
+        question:
+          $ref: '#/components/schemas/Question'
+        correct:
+          type: boolean
+        givenAnswer:
+          type: string
+        pointsEarned:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+    Enrollment:
+      type: object
+      properties:
+        _id:
+          type: string
+        student:
+          type: string
+        course:
+          $ref: '#/components/schemas/Course'
+        progress:
+          type: integer
+        enrolledAt:
+          type: string
+          format: date-time
+    LeaderboardEntry:
+      type: object
+      properties:
+        _id:
+          type: string
+        name:
+          type: string
+        points:
+          type: integer
+        level:
+          type: integer
+        badges:
+          type: array
+          items:
+            type: string
+    Badge:
+      type: object
+      properties:
+        _id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        condition:
+          type: string
+        icon:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+security:
+  - bearerAuth: []
+
 paths:
-  /api/auth/login:
+  # Public auth endpoints
+  /api/auth/register:
     post:
-      summary: Login
+      summary: Register a new user
+      tags: [Auth]
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
+              required: [name, email, password]
               properties:
-                email: { type: string }
-                password: { type: string }
+                name:
+                  type: string
+                email:
+                  type: string
+                password:
+                  type: string
+                role:
+                  type: string
+                  enum: [student, lecturer]
       responses:
-        "200":
-          description: success
+        '200':
+          description: Registration successful (returns token and verificationToken for demo)
           content:
             application/json:
               example:
-                token: "eyJ..."
+                token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                user:
+                  id: "603..."
+                  name: "Student One"
+                  email: "student1@example.com"
+                  role: "student"
+                verificationToken: "abc123..."
+
+  /api/auth/login:
+    post:
+      summary: Login
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              example:
+                token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
                 user:
                   id: "603..."
                   name: "Student One"
                   email: "student1@example.com"
                   role: "student"
 
-  /api/questions/next:
+  /api/auth/forgot-password:
+    post:
+      summary: Request password reset (returns token for demo)
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+      responses:
+        '200':
+          description: Reset email sent (token returned for demo)
+          content:
+            application/json:
+              example:
+                message: "Reset email sent (demo). Use token to reset."
+                resetToken: "abc123..."
+
+  /api/auth/reset-password/{token}:
+    post:
+      summary: Reset password using token
+      tags: [Auth]
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [newPassword]
+              properties:
+                newPassword:
+                  type: string
+      responses:
+        '200':
+          description: Password updated
+
+  /api/auth/verify-email/{token}:
     get:
-      summary: Get next adaptive question for current user
+      summary: Verify email (mock)
+      tags: [Auth]
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Email verified
+
+  # User endpoints
+  /api/user/profile:
+    get:
+      summary: Get own profile
+      tags: [User]
       security:
         - bearerAuth: []
       responses:
-        "200":
-          description: question
+        '200':
+          description: Profile data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /api/user/progress:
+    get:
+      summary: Get own progress (points, level, badges, mastery)
+      tags: [User]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Progress data
+          content:
+            application/json:
+              example:
+                points: 10
+                level: 1
+                badges: []
+                mastery:
+                  variables: 20
+                  loops: 0
+
+  # Courses
+  /api/courses:
+    get:
+      summary: List all courses (for students includes isEnrolled)
+      tags: [Courses]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Array of courses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Course'
+    post:
+      summary: Create a new course (lecturer only)
+      tags: [Courses]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, description]
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                level:
+                  type: string
+                duration:
+                  type: string
+      responses:
+        '200':
+          description: Course created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Course'
+
+  /api/courses/{id}:
+    get:
+      summary: Get course details with lessons and questions (answers stripped for students)
+      tags: [Courses]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Course object
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Course'
+
+  # Lessons
+  /api/lessons:
+    post:
+      summary: Create a lesson (lecturer only)
+      tags: [Lessons]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, content, courseId]
+              properties:
+                title:
+                  type: string
+                content:
+                  type: string
+                courseId:
+                  type: string
+                concepts:
+                  type: array
+                  items:
+                    type: string
+                order:
+                  type: integer
+      responses:
+        '200':
+          description: Lesson created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Lesson'
+
+  /api/lessons/course/{courseId}:
+    get:
+      summary: Get lessons for a course
+      tags: [Lessons]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Array of lessons
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Lesson'
+
+  /api/lessons/{id}:
+    get:
+      summary: Get a single lesson
+      tags: [Lessons]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lesson object
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Lesson'
+
+  # Questions
+  /api/questions/next:
+    get:
+      summary: Get next adaptive question (optionally filtered by lesson)
+      tags: [Questions]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: lessonId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Question object (safe – no answer/correct flags)
           content:
             application/json:
               example:
@@ -47,10 +528,29 @@ paths:
                 concepts: ["variables"]
                 difficulty: 1
                 points: 10
+                choices: []
 
+  /api/questions/{id}:
+    get:
+      summary: Get a single question (full data, lecturer/admin only)
+      tags: [Questions]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Full question object
+
+  # Attempts
   /api/attempts:
     post:
-      summary: Submit an attempt
+      summary: Submit an attempt (idempotency-key header optional)
+      tags: [Attempts]
       security:
         - bearerAuth: []
       requestBody:
@@ -59,12 +559,17 @@ paths:
           application/json:
             schema:
               type: object
+              required: [questionId, givenAnswer]
               properties:
-                questionId: { type: string }
-                givenAnswer: { type: string }
+                questionId:
+                  type: string
+                givenAnswer:
+                  type: string
+                timeSeconds:
+                  type: integer
       responses:
-        "200":
-          description: attempt recorded and user updated
+        '200':
+          description: Attempt recorded and user updated
           content:
             application/json:
               example:
@@ -77,13 +582,226 @@ paths:
                   level: 1
                   mastery:
                     variables: 58
-                  unlockedBadges:
-                    - _id: "b1"
-                      name: "Getting Started"
+                  badges: []
+                awardedBadges: []
 
-components:
-  securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
+  # Gamification
+  /api/gamification/leaderboard:
+    get:
+      summary: Get top 10 users by points and own rank
+      tags: [Gamification]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Leaderboard data
+          content:
+            application/json:
+              example:
+                top:
+                  - name: "Student One"
+                    points: 150
+                    level: 2
+                myRank: 1
+
+  # Enrollments
+  /api/enrollments/courses/{courseId}/enroll:
+    post:
+      summary: Enroll in a course
+      tags: [Enrollments]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Enrollment successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Enrollment'
+
+  /api/enrollments/my-enrollments:
+    get:
+      summary: List courses the student is enrolled in
+      tags: [Enrollments]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Array of enrollments with populated courses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Enrollment'
+
+  /api/enrollments/courses/{courseId}/status:
+    get:
+      summary: Check enrollment status
+      tags: [Enrollments]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Enrollment status
+          content:
+            application/json:
+              example:
+                enrolled: true
+
+  # Lecturer
+  /api/lecturer/stats:
+    get:
+      summary: Get lecturer's dashboard statistics
+      tags: [Lecturer]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Stats object
+          content:
+            application/json:
+              example:
+                totalStudents: 42
+                totalCourses: 3
+                totalAssignments: 15
+                totalXP: 1250
+
+  /api/lecturer/courses:
+    get:
+      summary: Get lecturer's courses with enrollment counts
+      tags: [Lecturer]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Array of courses with enrolledStudents
+          content:
+            application/json:
+              example:
+                - _id: "c123"
+                  title: "Software Engineering 100 Level"
+                  enrolledStudents: 15
+
+  # Admin
+  /api/admin/users:
+    get:
+      summary: List all users (admin only)
+      tags: [Admin]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Array of users (no password hash)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+    post:
+      summary: Create a new user (admin can set role)
+      tags: [Admin]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password]
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                password:
+                  type: string
+                role:
+                  type: string
+                  enum: [student, lecturer, admin]
+      responses:
+        '201':
+          description: User created
+
+  /api/admin/users/{id}:
+    delete:
+      summary: Delete a user (admin only)
+      tags: [Admin]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User deleted
+
+  /api/admin/stats:
+    get:
+      summary: System statistics
+      tags: [Admin]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Statistics
+          content:
+            application/json:
+              example:
+                totalUsers: 120
+                totalStudents: 115
+                totalLecturers: 4
+                totalCourses: 5
+                totalLessons: 18
+                totalEnrollments: 75
+
+  # File upload
+  /api/upload/lesson/{lessonId}:
+    post:
+      summary: Upload a PDF for a lesson (lecturer only)
+      tags: [Upload]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: lessonId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                pdf:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: File uploaded successfully
+          content:
+            application/json:
+              example:
+                message: "File uploaded successfully"
+                file:
+                  filename: "lecture1.pdf"
+                  url: "http://localhost:5000/uploads/pdf-123456.pdf"
