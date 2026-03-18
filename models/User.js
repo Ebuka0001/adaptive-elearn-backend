@@ -10,16 +10,22 @@ const userSchema = new mongoose.Schema({
   level: { type: Number, default: 1 },
   badges: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Badge' }],
   mastery: { type: Map, of: Number, default: {} },
-  // New fields for frontend
   department: { type: String, default: 'Software Engineering' },
-  learningStyle: { type: String, enum: ['Short & Quick', 'Detailed', 'Visual'], default: 'Short & Quick' },
-  studyTime: { type: String, enum: ['Morning', 'Afternoon', 'Night'], default: 'Night' },
-  // Password reset fields
+  learningStyle: { 
+    type: String, 
+    enum: ['Short & Quick', 'Detailed', 'Visual', 'Detailed & Deep'], 
+    default: 'Short & Quick' 
+  },
+  studyTime: { 
+    type: String, 
+    enum: ['Morning', 'Afternoon', 'Night', 'Anytime'], 
+    default: 'Night' 
+  },
   resetPasswordToken: String,
   resetPasswordExpires: Date,
-  // Email verification (optional)
   emailVerified: { type: Boolean, default: false },
   emailVerificationToken: String,
+  onboarded: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now }
 });
 
