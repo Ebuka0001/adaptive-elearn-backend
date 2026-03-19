@@ -1,10 +1,28 @@
 // controllers/userController.js
 const User = require('../models/User');
+const Enrollment = require('../models/Enrollment'); // add this import
 
 // GET /api/user/profile
 exports.getProfile = async (req, res) => {
   try {
-    const user = req.user;
+    const user = req.user; // already populated by authMiddleware (lean)
+
+    // Fetch enrollments for this user and populate course details
+    const enrollments = await Enrollment.find({ student: user._id })
+      .populate('course')
+      .lean();
+
+    // Map enrollments to the format expected by frontend
+    const enrolledCourses = enrollments.map(e => ({
+      id: e.course._id,
+      title: e.course.title,
+      level: e.course.level,
+      description: e.course.description,
+      instructor: e.course.lecturer, // you may need to populate lecturer later
+      progress: e.progress || 0,
+      enrolledDate: e.enrolledAt,
+    }));
+
     res.json({
       id: user._id,
       name: user.name,
@@ -14,10 +32,14 @@ exports.getProfile = async (req, res) => {
       level: user.level,
       badges: user.badges,
       mastery: user.mastery,
-      department: user.department,
-      learningStyle: user.learningStyle,
-      studyTime: user.studyTime,
+      profile: {
+        department: user.department,
+        learningStyle: user.learningStyle,
+        studyTime: user.studyTime,
+        enrolledCourses: enrolledCourses,
+      },
       onboarded: user.onboarded,
+      createdAt: user.createdAt,
     });
   } catch (err) {
     console.error('getProfile error:', err);
@@ -59,7 +81,7 @@ exports.updateProfile = async (req, res) => {
       onboarded: user.onboarded,
     });
   } catch (err) {
-    console.error('updateProfile error:', err); // This will print the full error in backend terminal
+    console.error('updateProfile error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 };

@@ -2,11 +2,10 @@
 const Enrollment = require('../models/Enrollment');
 const Course = require('../models/Course');
 
-// POST /api/courses/:courseId/enroll
 exports.enroll = async (req, res) => {
   try {
     const courseId = req.params.courseId;
-    const studentId = req.user._id;   // from auth middleware
+    const studentId = req.user._id;
 
     // Check if course exists
     const course = await Course.findById(courseId);
@@ -17,7 +16,7 @@ exports.enroll = async (req, res) => {
     // Check if already enrolled
     const existing = await Enrollment.findOne({ student: studentId, course: courseId });
     if (existing) {
-      return res.status(400).json({ message: 'Already enrolled in this course' });
+      return res.status(400).json({ message: 'Already enrolled' });
     }
 
     const enrollment = new Enrollment({
@@ -34,7 +33,6 @@ exports.enroll = async (req, res) => {
   }
 };
 
-// GET /api/courses/my-enrollments – list all courses the student is enrolled in
 exports.getMyEnrollments = async (req, res) => {
   try {
     const enrollments = await Enrollment.find({ student: req.user._id })
