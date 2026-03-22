@@ -51,13 +51,18 @@ exports.getProfile = async (req, res) => {
 exports.updateProfile = async (req, res) => {
   try {
     const updates = {};
-    const allowed = ['department', 'learningStyle', 'studyTime', 'level', 'name', 'onboarded'];
+    const allowed = ['department', 'learningStyle', 'studyTime', 'level', 'name', 'onboarded', 'office', 'coursesTaught'];
     for (const field of allowed) {
       if (req.body[field] !== undefined) updates[field] = req.body[field];
     }
     // handle lessonStyle as alias for learningStyle
     if (req.body.lessonStyle !== undefined) {
       updates.learningStyle = req.body.lessonStyle;
+    }
+    // handle coursesTaught as alias for coursesTaught
+    // Map frontend's `courses` (array of strings) to `coursesTaught`
+    if (req.body.courses !== undefined) {
+      updates.coursesTaught = req.body.courses.filter(c => c && c.trim() !== '');
     }
 
     const user = await User.findById(req.user._id);

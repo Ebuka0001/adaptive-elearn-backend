@@ -26,7 +26,9 @@ const userSchema = new mongoose.Schema({
   emailVerified: { type: Boolean, default: false },
   emailVerificationToken: String,
   onboarded: { type: Boolean, default: false },
-  createdAt: { type: Date, default: Date.now }
+  createdAt: { type: Date, default: Date.now },
+  office: { type: String, default: '' },
+  coursesTaught: [{ type: String }]
 });
 
 module.exports = mongoose.model('User', userSchema);

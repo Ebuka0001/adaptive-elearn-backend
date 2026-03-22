@@ -3,17 +3,18 @@ const Course = require('../models/Course');
 const Enrollment = require('../models/Enrollment');
 
 exports.createCourse = async (req, res) => {
-  const { title, description, level, duration } = req.body;
+  const { title, description, level, duration, modules } = req.body;
   try {
     const course = new Course({
       title,
       description,
-      level: level || '100',
-      duration: duration || '6 weeks',
-      lecturer: req.user._id
+      level,
+      duration,
+      modules,
+      lecturer: req.user._id,
     });
     await course.save();
-    res.json(course);
+    res.status(201).json(course);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Server error' });
