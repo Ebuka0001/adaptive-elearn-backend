@@ -31,11 +31,17 @@ exports.register = async (req, res) => {
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN });
 
     // In a real app you would send an email. For demo, return the token so frontend can simulate.
-    res.json({
-      token,
-      user: { id: user._id, name: user.name, email: user.email, role: user.role },
-      verificationToken // REMOVE IN PRODUCTION
-    });
+  res.json({
+    token,
+    user: {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      onboarded: user.onboarded,   // <-- add this line
+    },
+    verificationToken
+  });
   } catch (err) {
     console.error('Register error:', err);
     res.status(500).json({ message: 'Server error' });
@@ -55,10 +61,16 @@ exports.login = async (req, res) => {
 
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN });
 
-    res.json({
-      token,
-      user: { id: user._id, name: user.name, email: user.email, role: user.role }
-    });
+  res.json({
+    token,
+    user: {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      onboarded: user.onboarded,   // <-- add this line
+    }
+  });
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ message: 'Server error' });
